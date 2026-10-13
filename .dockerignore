@@ -1,0 +1,12 @@
+# Docker ignore list
+.next/
+node_modules/
+dev.log
+server.log
+.git/
+.gitignore
+.env
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md

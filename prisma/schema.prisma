@@ -1,0 +1,189 @@
+// AI Mentor Pro - Prisma Schema
+// Database: SQLite (local development)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users & Profiles
+// ---------------------------------------------------------------------------
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  avatar      String?
+  role        String   @default("user") // "user" | "admin"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile     Profile?
+  chats       Chat[]
+  folders     Folder[]
+  prompts     Prompt[]
+  documents   Document[]
+  settings    UserSettings?
+  feedback    Feedback[]
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // userId remains required + unique for profile (1:1); unused in demo.
+  bio             String?
+  careerGoals     String?
+  preferredRole   String?  // e.g. "Software Developer"
+  codingLanguage  String?  // e.g. "TypeScript"
+  learningGoals   String?
+  // AI memory - JSON strings to keep flexibility with SQLite
+  preferences     String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model UserSettings {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // userId remains required + unique for settings (1:1); unused in demo.
+  theme         String   @default("system") // "light" | "dark" | "system"
+  language      String   @default("en")
+  defaultMentor String   @default("general")
+  streaming     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Chat & Messages
+// ---------------------------------------------------------------------------
+
+model Folder {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("emerald")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chats     Chat[]
+}
+
+model Chat {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  title       String   @default("New conversation")
+  mentor      String   @default("general") // personality key
+  pinned      Boolean  @default(false)
+  archived    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    Message[]
+  analysis    ResumeAnalysis?
+
+  @@index([userId, updatedAt])
+  @@index([userId, pinned])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  chatId      String
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role        String   // "user" | "assistant" | "system"
+  content     String
+  mentor      String?
+  tokens      Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Prompt Library
+// ---------------------------------------------------------------------------
+
+model Prompt {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  content     String
+  category    String   @default("general")
+  favorite    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, category])
+  @@index([userId, favorite])
+}
+
+// ---------------------------------------------------------------------------
+// Documents & Resume Analysis
+// ---------------------------------------------------------------------------
+
+model Document {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   // "resume" | "paper" | "other"
+  mimeType    String
+  size        Int
+  content     String   // extracted text content
+  createdAt   DateTime @default(now())
+
+  analysis    ResumeAnalysis?
+}
+
+model ResumeAnalysis {
+  id            String   @id @default(cuid())
+  documentId    String   @unique
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chatId        String?  @unique
+  chat          Chat?    @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  atsScore      Int      @default(0)
+  strengths     String   // JSON array
+  weaknesses    String   // JSON array
+  suggestions   String   // JSON array
+  improvedBullets String // JSON array
+  fullReport    String   // markdown report
+  createdAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Analytics & Feedback
+// ---------------------------------------------------------------------------
+
+model Analytics {
+  id            String   @id @default(cuid())
+  userId        String?
+  event         String   // "chat_created" | "message_sent" | "tokens_used" | ...
+  mentor        String?
+  metadata      String?  // JSON
+  tokensUsed    Int      @default(0)
+  responseMs    Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([userId])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int      // 1-5
+  message   String?
+  createdAt DateTime @default(now())
+}
